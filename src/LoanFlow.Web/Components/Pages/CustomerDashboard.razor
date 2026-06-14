@@ -1,0 +1,20 @@
+@page "/customer/dashboard"
+@attribute [Authorize(Roles = AppRoles.Customer)]
+
+<PageTitle>Customer Dashboard</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Customer Dashboard</p>
+    <h1>Welcome, customer.</h1>
+    <p class="dashboard-text">
+        This protected page is the starting point for customer self-service actions in LoanFlow.
+    </p>
+
+    <article class="dashboard-card">
+        <p class="dashboard-card-label">Role Access</p>
+        <h2>Customer tools only</h2>
+        <p>
+            You can open customer pages, review your own requests later, and manage your account.
+        </p>
+    </article>
+</section>

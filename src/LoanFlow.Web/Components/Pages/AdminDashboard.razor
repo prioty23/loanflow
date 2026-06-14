@@ -1,0 +1,84 @@
+@page "/admin/dashboard"
+@attribute [Authorize(Roles = AppRoles.Administrator)]
+
+@using LoanFlow.Application.LoanProducts
+
+@inject ILoanProductReadService LoanProductReadService
+
+<PageTitle>Administrator Dashboard</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Administrator Dashboard</p>
+    <h1>Welcome, administrator.</h1>
+    <p class="dashboard-text">
+        This protected page is the starting point for administrative oversight and system-level tasks.
+    </p>
+
+    <article class="dashboard-card">
+        <p class="dashboard-card-label">Role Access</p>
+        <h2>Administrative controls</h2>
+        <p>
+            You can open the administrator dashboard and stay isolated from customer, officer, and approver routes.
+        </p>
+    </article>
+
+    <article class="dashboard-card">
+        <p class="dashboard-card-label">Sample Loan Product</p>
+        <h2>Read-only product configuration</h2>
+
+        @if (loanProducts.Count == 0)
+        {
+            <p>No loan products are available yet.</p>
+        }
+        else
+        {
+            @foreach (var product in loanProducts)
+            {
+                <div class="product-summary">
+                    <h3>@product.ProductName</h3>
+                    <p class="text-secondary">Code: @product.ProductCode</p>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Loan amount</th>
+                                    <td>@product.MinimumLoanAmount.ToString("N0") to @product.MaximumLoanAmount.ToString("N0")</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Annual interest rate</th>
+                                    <td>@product.AnnualInterestRate.ToString("0.00")%</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Tenure</th>
+                                    <td>@product.MinimumTenureMonths to @product.MaximumTenureMonths months</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Minimum monthly income</th>
+                                    <td>@product.MinimumMonthlyIncome.ToString("N0")</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Maximum debt-to-income ratio</th>
+                                    <td>@product.MaximumDebtToIncomeRatio.ToString("0.00")</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Status</th>
+                                    <td>@(product.IsActive ? "Active" : "Inactive")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        }
+    </article>
+</section>
+
+@code {
+    private IReadOnlyList<LoanProductSummary> loanProducts = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        loanProducts = await LoanProductReadService.GetLoanProductsAsync();
+    }
+}

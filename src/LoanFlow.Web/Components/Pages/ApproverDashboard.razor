@@ -1,0 +1,20 @@
+@page "/approver/dashboard"
+@attribute [Authorize(Roles = AppRoles.Approver)]
+
+<PageTitle>Approver Dashboard</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Approver Dashboard</p>
+    <h1>Welcome, approver.</h1>
+    <p class="dashboard-text">
+        This protected page is the starting point for approval decisions and reviewer-specific tasks.
+    </p>
+
+    <article class="dashboard-card">
+        <p class="dashboard-card-label">Role Access</p>
+        <h2>Approval workspace</h2>
+        <p>
+            You can open the approver dashboard and stay separated from customer, officer, and administrator routes.
+        </p>
+    </article>
+</section>

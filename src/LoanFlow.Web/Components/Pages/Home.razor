@@ -1,0 +1,66 @@
+@page "/"
+
+@inject NavigationManager NavigationManager
+
+<PageTitle>LoanFlow</PageTitle>
+
+@if (!isRedirecting)
+{
+    <section class="hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Protected Dashboards</p>
+            <h1>LoanFlow gives each role a secure dashboard entry point.</h1>
+            <p class="hero-text">
+                Customers, loan officers, approvers, and administrators now each have their own
+                protected area, while the route itself still enforces authorization.
+            </p>
+        </div>
+
+        <div class="hero-panel">
+            <h2>Phase 1 objectives</h2>
+            <ul>
+                <li>Secure sign-in with ASP.NET Core Identity</li>
+                <li>Role-based dashboards for the four required user types</li>
+                <li>Navigation that reflects access without replacing route security</li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="baseline-grid" aria-label="Dashboard highlights">
+        <article>
+            <h2>Customers see customer tools</h2>
+            <p>Public registrations land in the customer role and can open only the customer dashboard.</p>
+        </article>
+
+        <article>
+            <h2>Staff roles stay separated</h2>
+            <p>Loan officers, approvers, and administrators each get their own route and welcome experience.</p>
+        </article>
+
+        <article>
+            <h2>Unauthorized routes still block access</h2>
+            <p>Hidden links improve the menu, but role attributes on each page remain the real security layer.</p>
+        </article>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+
+    private bool isRedirecting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await AuthenticationStateTask;
+        var dashboardPath = RoleDashboardRoutes.GetDashboardPath(authenticationState.User);
+
+        if (dashboardPath is null)
+        {
+            return;
+        }
+
+        isRedirecting = true;
+        NavigationManager.NavigateTo(dashboardPath, replace: true);
+    }
+}

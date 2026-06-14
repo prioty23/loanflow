@@ -1,0 +1,20 @@
+@page "/officer/dashboard"
+@attribute [Authorize(Roles = AppRoles.LoanOfficer)]
+
+<PageTitle>Loan Officer Dashboard</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Loan Officer Dashboard</p>
+    <h1>Welcome, loan officer.</h1>
+    <p class="dashboard-text">
+        This protected page is the starting point for intake and operational work assigned to loan officers.
+    </p>
+
+    <article class="dashboard-card">
+        <p class="dashboard-card-label">Role Access</p>
+        <h2>Officer workflow area</h2>
+        <p>
+            You can open the officer dashboard, review incoming work later, and stay separated from approver and admin pages.
+        </p>
+    </article>
+</section>
