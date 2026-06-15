@@ -1,0 +1,54 @@
+@page "/customer/applications/new"
+@attribute [Authorize(Roles = AppRoles.Customer)]
+
+@using System.Security.Claims
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ICustomerLoanApplicationService CustomerLoanApplicationService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Start New Application</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Customer Applications</p>
+    <h1>Starting a new application...</h1>
+    <p class="dashboard-text">
+        LoanFlow is creating your draft and sending you to the first unfinished step.
+    </p>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+</section>
+
+@code {
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var customerUserId = await GetCustomerUserIdAsync();
+            var applicationId = await CustomerLoanApplicationService.CreateDraftAsync(customerUserId);
+            NavigationManager.NavigateTo($"/customer/applications/{applicationId}/edit", replace: true);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private async Task<string> GetCustomerUserIdAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException("The signed-in customer could not be found.");
+        }
+
+        return userId;
+    }
+}

@@ -114,4 +114,24 @@ public class LoanProduct
         MaximumDebtToIncomeRatio = maximumDebtToIncomeRatio;
         IsActive = isActive;
     }
+
+    public void ValidateLoanRequest(decimal requestedAmount, int requestedTenureMonths)
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException("The selected loan product is no longer active.");
+        }
+
+        if (requestedAmount < MinimumLoanAmount || requestedAmount > MaximumLoanAmount)
+        {
+            throw new InvalidOperationException(
+                $"Requested amount must be between {MinimumLoanAmount:0.##} and {MaximumLoanAmount:0.##}.");
+        }
+
+        if (requestedTenureMonths < MinimumTenureMonths || requestedTenureMonths > MaximumTenureMonths)
+        {
+            throw new InvalidOperationException(
+                $"Requested tenure must be between {MinimumTenureMonths} and {MaximumTenureMonths} months.");
+        }
+    }
 }

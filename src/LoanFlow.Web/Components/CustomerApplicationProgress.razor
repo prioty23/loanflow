@@ -1,0 +1,42 @@
+@using LoanFlow.Application.LoanApplications
+
+<ol class="wizard-progress" aria-label="Application progress">
+    @foreach (var item in StepItems)
+    {
+        <li class="@GetStepClass(item.Step)">
+            <span class="wizard-step-number">@((int)item.Step)</span>
+            <span class="wizard-step-label">@item.Label</span>
+        </li>
+    }
+</ol>
+
+@code {
+    [Parameter]
+    public LoanApplicationWizardStep CurrentStep { get; set; }
+
+    [Parameter]
+    public LoanApplicationWizardStep? LastCompletedStep { get; set; }
+
+    private static readonly (LoanApplicationWizardStep Step, string Label)[] StepItems =
+    [
+        (LoanApplicationWizardStep.Employment, "Employment"),
+        (LoanApplicationWizardStep.MonthlyFinances, "Monthly finances"),
+        (LoanApplicationWizardStep.LoanRequest, "Loan request"),
+        (LoanApplicationWizardStep.ReviewAndDeclaration, "Review and declaration")
+    ];
+
+    private string GetStepClass(LoanApplicationWizardStep step)
+    {
+        if (step == CurrentStep)
+        {
+            return "wizard-progress-item is-current";
+        }
+
+        if (LastCompletedStep is not null && step <= LastCompletedStep)
+        {
+            return "wizard-progress-item is-complete";
+        }
+
+        return "wizard-progress-item";
+    }
+}

@@ -1,0 +1,701 @@
+@page "/customer/applications/{Id:int}/edit"
+@page "/customer/applications/{Id:int}/edit/{StepSlug}"
+@attribute [Authorize(Roles = AppRoles.Customer)]
+
+@using System.Security.Claims
+@using FluentValidation
+@using LoanFlow.Application.CustomerProfiles
+@using LoanFlow.Application.LoanApplications
+@using LoanFlow.Domain.Enums
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ICustomerLoanApplicationService CustomerLoanApplicationService
+@inject ICustomerProfileService CustomerProfileService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Application Wizard</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Customer Applications</p>
+    <h1>Application wizard</h1>
+    <p class="dashboard-text">
+        Complete each step in order. LoanFlow saves your draft so you can leave and continue later.
+    </p>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert alert-success" role="alert">@statusMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    @if (isMissingApplication)
+    {
+        <div class="dashboard-card">
+            <p class="mb-0">The application could not be found.</p>
+        </div>
+    }
+    else if (wizard is not null)
+    {
+        <div class="dashboard-card mb-4">
+            <p class="dashboard-card-label">Loan Product</p>
+            <h2>@wizard.ProductName</h2>
+            <p class="mb-0 text-secondary">Code: @wizard.ProductCode</p>
+        </div>
+
+        <CustomerApplicationProgress CurrentStep="@currentStep" LastCompletedStep="@wizard.LastCompletedStep" />
+
+        <EditForm EditContext="GetCurrentEditContext()" FormName="customer-application-step" @key="currentStep">
+            <FluentValidationValidator @ref="activeValidator" />
+            <ValidationSummary />
+
+            <div class="dashboard-card mt-4">
+                @switch (currentStep)
+                {
+                    case LoanApplicationWizardStep.Employment:
+                        <h2>1. Employment</h2>
+                        <div class="profile-form-grid">
+                            <div>
+                                <label class="form-label" for="employment-type">Employment type</label>
+                                <InputSelect id="employment-type" class="form-select" @bind-Value="employmentInput.EmploymentType">
+                                    @foreach (var employmentType in Enum.GetValues<EmploymentType>())
+                                    {
+                                        <option value="@employmentType">@employmentType</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => employmentInput.EmploymentType)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="employer-name">Employer or business name</label>
+                                <InputText id="employer-name" class="form-control" @bind-Value="employmentInput.EmployerOrBusinessName" />
+                                <ValidationMessage For="@(() => employmentInput.EmployerOrBusinessName)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="job-title">Job title</label>
+                                <InputText id="job-title" class="form-control" @bind-Value="employmentInput.JobTitle" />
+                                <ValidationMessage For="@(() => employmentInput.JobTitle)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="employment-start-date">Employment start date</label>
+                                <InputDate id="employment-start-date" class="form-control" @bind-Value="employmentInput.EmploymentStartDate" />
+                                <ValidationMessage For="@(() => employmentInput.EmploymentStartDate)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="monthly-net-salary">Monthly net salary</label>
+                                <InputNumber id="monthly-net-salary" class="form-control" @bind-Value="employmentInput.MonthlyNetSalary" />
+                                <ValidationMessage For="@(() => employmentInput.MonthlyNetSalary)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="other-income">Other monthly income</label>
+                                <InputNumber id="other-income" class="form-control" @bind-Value="employmentInput.OtherMonthlyIncome" />
+                                <ValidationMessage For="@(() => employmentInput.OtherMonthlyIncome)" />
+                            </div>
+                        </div>
+                        break;
+
+                    case LoanApplicationWizardStep.MonthlyFinances:
+                        <h2>2. Monthly finances</h2>
+                        <div class="profile-form-grid">
+                            <div>
+                                <label class="form-label" for="housing-expense">Housing expense</label>
+                                <InputNumber id="housing-expense" class="form-control" @bind-Value="financesInput.HousingExpense" />
+                                <ValidationMessage For="@(() => financesInput.HousingExpense)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="living-expense">Living expense</label>
+                                <InputNumber id="living-expense" class="form-control" @bind-Value="financesInput.LivingExpense" />
+                                <ValidationMessage For="@(() => financesInput.LivingExpense)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="existing-monthly-emi">Existing monthly EMI</label>
+                                <InputNumber id="existing-monthly-emi" class="form-control" @bind-Value="financesInput.ExistingMonthlyEmi" />
+                                <ValidationMessage For="@(() => financesInput.ExistingMonthlyEmi)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="other-liabilities">Other liabilities</label>
+                                <InputNumber id="other-liabilities" class="form-control" @bind-Value="financesInput.OtherLiabilities" />
+                                <ValidationMessage For="@(() => financesInput.OtherLiabilities)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="total-monthly-expenses">Total monthly expenses</label>
+                                <input id="total-monthly-expenses" class="form-control" value="@wizard.TotalMonthlyExpenses" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="disposable-income">Calculated disposable income</label>
+                                <input id="disposable-income" class="form-control" value="@wizard.CalculatedDisposableIncome" readonly />
+                            </div>
+                        </div>
+                        break;
+
+                    case LoanApplicationWizardStep.LoanRequest:
+                        <h2>3. Loan request</h2>
+                        <div class="profile-form-grid">
+                            <div>
+                                <label class="form-label" for="loan-product">Loan product</label>
+                                <input id="loan-product" class="form-control" value="@($"{wizard.ProductName} ({wizard.ProductCode})")" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="product-status">Product status</label>
+                                <input id="product-status" class="form-control" value="@(wizard.ProductIsActive ? "Active" : "Inactive")" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="applicant-name">Full name</label>
+                                <InputText id="applicant-name" class="form-control" @bind-Value="loanRequestInput.ApplicantFullName" />
+                                <ValidationMessage For="@(() => loanRequestInput.ApplicantFullName)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="requested-amount">Requested amount</label>
+                                <InputNumber id="requested-amount" class="form-control" @bind-Value="loanRequestInput.RequestedAmount" />
+                                <ValidationMessage For="@(() => loanRequestInput.RequestedAmount)" />
+                                <small class="text-secondary">Allowed range: @wizard.ProductMinimumLoanAmount to @wizard.ProductMaximumLoanAmount</small>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="requested-tenure">Requested tenure (months)</label>
+                                <InputNumber id="requested-tenure" class="form-control" @bind-Value="loanRequestInput.RequestedTenureMonths" />
+                                <ValidationMessage For="@(() => loanRequestInput.RequestedTenureMonths)" />
+                                <small class="text-secondary">Allowed range: @wizard.ProductMinimumTenureMonths to @wizard.ProductMaximumTenureMonths months</small>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="loan-purpose">Loan purpose</label>
+                                <InputSelect id="loan-purpose" class="form-select" @bind-Value="loanRequestInput.LoanPurpose">
+                                    @foreach (var loanPurpose in Enum.GetValues<LoanPurpose>())
+                                    {
+                                        <option value="@loanPurpose">@loanPurpose</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => loanRequestInput.LoanPurpose)" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="purpose-description">Purpose description</label>
+                                <InputText id="purpose-description" class="form-control" @bind-Value="loanRequestInput.PurposeDescription" />
+                                <ValidationMessage For="@(() => loanRequestInput.PurposeDescription)" />
+                            </div>
+                        </div>
+                        break;
+
+                    case LoanApplicationWizardStep.ReviewAndDeclaration:
+                        <h2>4. Review and declaration</h2>
+                        <div class="wizard-review-grid">
+                            <div>
+                                <h3>Customer profile</h3>
+                                @if (customerProfile is null)
+                                {
+                                    <p>Please complete your customer profile before submitting.</p>
+                                }
+                                else
+                                {
+                                    <p>@customerProfile.FullName</p>
+                                    <p>Date of birth: @customerProfile.DateOfBirth?.ToString("dd MMM yyyy")</p>
+                                    <p>NID: @customerProfile.NationalIdNumber</p>
+                                    <p>@customerProfile.MobileNumber</p>
+                                    <p>@customerProfile.CurrentAddress</p>
+                                    <p>@customerProfile.PermanentAddress</p>
+                                }
+                                <ValidationMessage For="@(() => submitCommand.CustomerProfile!.FullName)" />
+                                <ValidationMessage For="@(() => submitCommand.CustomerProfile!.DateOfBirth)" />
+                                <ValidationMessage For="@(() => submitCommand.CustomerProfile!.NationalIdNumber)" />
+                                <ValidationMessage For="@(() => submitCommand.CustomerProfile!.MobileNumber)" />
+                                <ValidationMessage For="@(() => submitCommand.CustomerProfile!.CurrentAddress)" />
+                                <ValidationMessage For="@(() => submitCommand.CustomerProfile!.PermanentAddress)" />
+                            </div>
+
+                            <div>
+                                <h3>Employment</h3>
+                                <p>@employmentInput.EmploymentType</p>
+                                <p>@employmentInput.EmployerOrBusinessName</p>
+                                <p>@employmentInput.JobTitle</p>
+                                <p>Start date: @(employmentInput.EmploymentStartDate?.ToString("dd MMM yyyy") ?? "Not provided")</p>
+                                <p>Monthly net salary: @wizard.MonthlyNetSalary</p>
+                                <p>Other income: @wizard.OtherMonthlyIncome</p>
+                                <p>Total income: @wizard.TotalMonthlyIncome</p>
+                                <ValidationMessage For="@(() => submitCommand.EmploymentDetails.EmployerOrBusinessName)" />
+                                <ValidationMessage For="@(() => submitCommand.EmploymentDetails.JobTitle)" />
+                                <ValidationMessage For="@(() => submitCommand.EmploymentDetails.EmploymentStartDate)" />
+                                <ValidationMessage For="@(() => submitCommand.EmploymentDetails.MonthlyNetSalary)" />
+                            </div>
+
+                            <div>
+                                <h3>Monthly finances</h3>
+                                <p>Housing expense: @financesInput.HousingExpense</p>
+                                <p>Living expense: @financesInput.LivingExpense</p>
+                                <p>Existing monthly EMI: @financesInput.ExistingMonthlyEmi</p>
+                                <p>Other liabilities: @financesInput.OtherLiabilities</p>
+                                <p>Total monthly expenses: @wizard.TotalMonthlyExpenses</p>
+                                <p>Disposable income: @wizard.CalculatedDisposableIncome</p>
+                            </div>
+
+                            <div>
+                                <h3>Loan request</h3>
+                                <p>@loanRequestInput.ApplicantFullName</p>
+                                <p>Amount: @loanRequestInput.RequestedAmount</p>
+                                <p>Tenure: @loanRequestInput.RequestedTenureMonths months</p>
+                                <p>Purpose: @loanRequestInput.LoanPurpose</p>
+                                <p>Description: @loanRequestInput.PurposeDescription</p>
+                                <ValidationMessage For="@(() => submitCommand.LoanRequest.ApplicantFullName)" />
+                                <ValidationMessage For="@(() => submitCommand.LoanRequest.RequestedAmount)" />
+                                <ValidationMessage For="@(() => submitCommand.LoanRequest.RequestedTenureMonths)" />
+                                <ValidationMessage For="@(() => submitCommand.LoanRequest.PurposeDescription)" />
+                            </div>
+                        </div>
+
+                        <div class="form-check mt-3">
+                            <InputCheckbox id="declaration" class="form-check-input" @bind-Value="submitCommand.DeclarationAccepted" />
+                            <label class="form-check-label" for="declaration">
+                                I confirm that the information in this application is correct.
+                            </label>
+                        </div>
+                        <ValidationMessage For="@(() => submitCommand.DeclarationAccepted)" />
+                        break;
+                }
+            </div>
+        </EditForm>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+            @if (GetPreviousStep(currentStep) is not null)
+            {
+                <button class="btn btn-outline-secondary" type="button" @onclick="GoToPreviousAsync">Previous</button>
+            }
+
+            @if (currentStep != LoanApplicationWizardStep.ReviewAndDeclaration)
+            {
+                <button class="btn btn-primary" type="button" @onclick="GoToNextAsync">Next</button>
+            }
+            else
+            {
+                <button class="btn btn-primary" type="button" @onclick="SubmitApplicationAsync">Submit Application</button>
+            }
+
+            <button class="btn btn-outline-primary" type="button" @onclick="SaveDraftAsync">Save Draft</button>
+            <button class="btn btn-outline-secondary" type="button" @onclick="SaveAndExitAsync">Save and Exit</button>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [Parameter]
+    public string? StepSlug { get; set; }
+
+    private bool isMissingApplication;
+    private string? statusMessage;
+    private string? errorMessage;
+
+    private CustomerLoanApplicationWizard? wizard;
+    private LoanApplicationWizardStep currentStep;
+    private CustomerProfileDto? customerProfile;
+
+    private EmploymentDetailsDto employmentInput = new();
+    private FinancialDetailsDto financesInput = new();
+    private LoanRequestDto loanRequestInput = new();
+    private SubmitLoanApplicationCommand submitCommand = new();
+
+    private EditContext employmentEditContext = default!;
+    private EditContext financesEditContext = default!;
+    private EditContext loanRequestEditContext = default!;
+    private EditContext reviewEditContext = default!;
+    private FluentValidationValidator? activeValidator;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        statusMessage = null;
+        errorMessage = null;
+        isMissingApplication = false;
+
+        try
+        {
+            var customerUserId = await GetCustomerUserIdAsync();
+            wizard = await CustomerLoanApplicationService.GetWizardAsync(customerUserId, Id);
+            customerProfile = await CustomerProfileService.GetForUserAsync(customerUserId) switch
+            {
+                null => null,
+                var profile => new CustomerProfileDto
+                {
+                    FullName = profile.FullName,
+                    DateOfBirth = profile.DateOfBirth,
+                    NationalIdNumber = profile.NationalIdNumber,
+                    MobileNumber = profile.MobileNumber,
+                    CurrentAddress = profile.CurrentAddress,
+                    PermanentAddress = profile.PermanentAddress,
+                    IsPermanentAddressSameAsPresentAddress = profile.CurrentAddress == profile.PermanentAddress
+                }
+            };
+
+            if (wizard is null)
+            {
+                isMissingApplication = true;
+                return;
+            }
+
+            if (wizard.Status == ApplicationStatus.Submitted)
+            {
+                NavigationManager.NavigateTo(CustomerApplicationWizardRoutes.GetViewPath(Id), replace: true);
+                return;
+            }
+
+            currentStep = ResolveAllowedStep(wizard, StepSlug);
+            PopulateInputs(wizard);
+
+            var requestedStep = CustomerApplicationWizardRoutes.ParseStep(StepSlug);
+            if (requestedStep is null || requestedStep != currentStep)
+            {
+                NavigationManager.NavigateTo(CustomerApplicationWizardRoutes.GetStepPath(Id, currentStep), replace: true);
+            }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private void PopulateInputs(CustomerLoanApplicationWizard model)
+    {
+        employmentInput = new EmploymentDetailsDto
+        {
+            EmploymentType = model.EmploymentType,
+            EmployerOrBusinessName = model.EmployerOrBusinessName,
+            JobTitle = model.JobTitle,
+            EmploymentStartDate = model.EmploymentStartDate,
+            MonthlyNetSalary = model.MonthlyNetSalary,
+            OtherMonthlyIncome = model.OtherMonthlyIncome
+        };
+
+        financesInput = new FinancialDetailsDto
+        {
+            HousingExpense = model.HousingExpense,
+            LivingExpense = model.LivingExpense,
+            ExistingMonthlyEmi = model.ExistingMonthlyEmi,
+            OtherLiabilities = model.OtherLiabilities
+        };
+
+        loanRequestInput = new LoanRequestDto
+        {
+            ApplicantFullName = model.ApplicantFullName,
+            RequestedAmount = model.RequestedAmount,
+            RequestedTenureMonths = model.RequestedTenureMonths,
+            LoanPurpose = model.LoanPurpose,
+            PurposeDescription = model.PurposeDescription
+        };
+
+        submitCommand = BuildSubmitCommand(model);
+        RebuildEditContexts();
+    }
+
+    private SubmitLoanApplicationCommand BuildSubmitCommand(CustomerLoanApplicationWizard model)
+    {
+        return new SubmitLoanApplicationCommand
+        {
+            CustomerProfile = customerProfile,
+            EmploymentDetails = new EmploymentDetailsDto
+            {
+                EmploymentType = employmentInput.EmploymentType,
+                EmployerOrBusinessName = employmentInput.EmployerOrBusinessName,
+                JobTitle = employmentInput.JobTitle,
+                EmploymentStartDate = employmentInput.EmploymentStartDate,
+                MonthlyNetSalary = employmentInput.MonthlyNetSalary,
+                OtherMonthlyIncome = employmentInput.OtherMonthlyIncome
+            },
+            FinancialDetails = new FinancialDetailsDto
+            {
+                HousingExpense = financesInput.HousingExpense,
+                LivingExpense = financesInput.LivingExpense,
+                ExistingMonthlyEmi = financesInput.ExistingMonthlyEmi,
+                OtherLiabilities = financesInput.OtherLiabilities
+            },
+            LoanRequest = new LoanRequestDto
+            {
+                ApplicantFullName = loanRequestInput.ApplicantFullName,
+                RequestedAmount = loanRequestInput.RequestedAmount,
+                RequestedTenureMonths = loanRequestInput.RequestedTenureMonths,
+                LoanPurpose = loanRequestInput.LoanPurpose,
+                PurposeDescription = loanRequestInput.PurposeDescription
+            },
+            DeclarationAccepted = model.DeclarationAccepted,
+            ProductIsActive = model.ProductIsActive,
+            ProductMinimumLoanAmount = model.ProductMinimumLoanAmount,
+            ProductMaximumLoanAmount = model.ProductMaximumLoanAmount,
+            ProductMinimumTenureMonths = model.ProductMinimumTenureMonths,
+            ProductMaximumTenureMonths = model.ProductMaximumTenureMonths
+        };
+    }
+
+    private void RebuildEditContexts()
+    {
+        employmentEditContext = new EditContext(employmentInput);
+        financesEditContext = new EditContext(financesInput);
+        loanRequestEditContext = new EditContext(loanRequestInput);
+        reviewEditContext = new EditContext(submitCommand);
+    }
+
+    private EditContext GetCurrentEditContext()
+    {
+        return currentStep switch
+        {
+            LoanApplicationWizardStep.Employment => employmentEditContext,
+            LoanApplicationWizardStep.MonthlyFinances => financesEditContext,
+            LoanApplicationWizardStep.LoanRequest => loanRequestEditContext,
+            _ => reviewEditContext
+        };
+    }
+
+    private async Task GoToPreviousAsync()
+    {
+        errorMessage = null;
+
+        if (GetPreviousStep(currentStep) is not { } previousStep)
+        {
+            return;
+        }
+
+        if (await SaveCurrentStepAsync(markStepCompleted: false))
+        {
+            NavigationManager.NavigateTo(CustomerApplicationWizardRoutes.GetStepPath(Id, previousStep));
+        }
+    }
+
+    private async Task GoToNextAsync()
+    {
+        errorMessage = null;
+
+        if (!GetCurrentEditContext().Validate())
+        {
+            return;
+        }
+
+        if (!await SaveCurrentStepAsync(markStepCompleted: true))
+        {
+            return;
+        }
+
+        if (GetNextStep(currentStep) is { } nextStep)
+        {
+            NavigationManager.NavigateTo(CustomerApplicationWizardRoutes.GetStepPath(Id, nextStep));
+        }
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+
+        if (currentStep != LoanApplicationWizardStep.ReviewAndDeclaration && !GetCurrentEditContext().Validate())
+        {
+            return;
+        }
+
+        if (!await SaveCurrentStepAsync(markStepCompleted: false))
+        {
+            return;
+        }
+        statusMessage = "Your draft has been saved.";
+    }
+
+    private async Task SaveAndExitAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+
+        if (currentStep != LoanApplicationWizardStep.ReviewAndDeclaration && !GetCurrentEditContext().Validate())
+        {
+            return;
+        }
+
+        if (!await SaveCurrentStepAsync(markStepCompleted: false))
+        {
+            return;
+        }
+        NavigationManager.NavigateTo(RoleDashboardRoutes.CustomerApplications);
+    }
+
+    private async Task SubmitApplicationAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+
+        if (wizard is null)
+        {
+            return;
+        }
+
+        submitCommand = BuildSubmitCommand(wizard);
+        reviewEditContext = new EditContext(submitCommand);
+
+        if (!reviewEditContext.Validate())
+        {
+            return;
+        }
+
+        try
+        {
+            var customerUserId = await GetCustomerUserIdAsync();
+            await CustomerLoanApplicationService.SubmitAsync(customerUserId, Id, submitCommand.DeclarationAccepted);
+            NavigationManager.NavigateTo(RoleDashboardRoutes.CustomerApplications);
+        }
+        catch (ValidationException validationException)
+        {
+            activeValidator?.DisplayErrors(validationException.Errors);
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or ArgumentOutOfRangeException or ArgumentException)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private async Task<bool> SaveCurrentStepAsync(bool markStepCompleted)
+    {
+        try
+        {
+            var customerUserId = await GetCustomerUserIdAsync();
+
+            switch (currentStep)
+            {
+                case LoanApplicationWizardStep.Employment:
+                    await CustomerLoanApplicationService.SaveEmploymentStepAsync(
+                        customerUserId,
+                        Id,
+                        new SaveEmploymentStepRequest(
+                            employmentInput.EmploymentType,
+                            employmentInput.EmployerOrBusinessName,
+                            employmentInput.JobTitle,
+                            employmentInput.EmploymentStartDate ?? DateOnly.FromDateTime(DateTime.Today),
+                            employmentInput.MonthlyNetSalary,
+                            employmentInput.OtherMonthlyIncome),
+                        markStepCompleted);
+                    break;
+
+                case LoanApplicationWizardStep.MonthlyFinances:
+                    await CustomerLoanApplicationService.SaveMonthlyFinancesStepAsync(
+                        customerUserId,
+                        Id,
+                        new SaveMonthlyFinancesStepRequest(
+                            financesInput.HousingExpense,
+                            financesInput.LivingExpense,
+                            financesInput.ExistingMonthlyEmi,
+                            financesInput.OtherLiabilities),
+                        markStepCompleted);
+                    break;
+
+                case LoanApplicationWizardStep.LoanRequest:
+                    await CustomerLoanApplicationService.SaveLoanRequestStepAsync(
+                        customerUserId,
+                        Id,
+                        new SaveCustomerLoanApplicationRequest(
+                            loanRequestInput.ApplicantFullName,
+                            loanRequestInput.RequestedAmount,
+                            loanRequestInput.RequestedTenureMonths,
+                            loanRequestInput.LoanPurpose,
+                            loanRequestInput.PurposeDescription),
+                        markStepCompleted);
+                    break;
+
+                case LoanApplicationWizardStep.ReviewAndDeclaration:
+                    await CustomerLoanApplicationService.SaveReviewStepAsync(
+                        customerUserId,
+                        Id,
+                        new SaveReviewStepRequest(submitCommand.DeclarationAccepted),
+                        markStepCompleted);
+                    break;
+            }
+
+            wizard = await CustomerLoanApplicationService.GetWizardAsync(customerUserId, Id);
+            if (wizard is not null)
+            {
+                currentStep = ResolveAllowedStep(wizard, CustomerApplicationWizardRoutes.GetSlug(currentStep));
+                PopulateInputs(wizard);
+            }
+
+            return true;
+        }
+        catch (ValidationException validationException)
+        {
+            activeValidator?.DisplayErrors(validationException.Errors);
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or ArgumentOutOfRangeException or ArgumentException)
+        {
+            errorMessage = exception.Message;
+        }
+
+        return false;
+    }
+
+    private static LoanApplicationWizardStep ResolveAllowedStep(CustomerLoanApplicationWizard wizard, string? requestedStepSlug)
+    {
+        var requestedStep = CustomerApplicationWizardRoutes.ParseStep(requestedStepSlug);
+        if (requestedStep is null)
+        {
+            return wizard.CurrentStep;
+        }
+
+        if (requestedStep <= wizard.CurrentStep)
+        {
+            return requestedStep.Value;
+        }
+
+        return wizard.CurrentStep;
+    }
+
+    private static LoanApplicationWizardStep? GetPreviousStep(LoanApplicationWizardStep step)
+    {
+        return step switch
+        {
+            LoanApplicationWizardStep.Employment => null,
+            LoanApplicationWizardStep.MonthlyFinances => LoanApplicationWizardStep.Employment,
+            LoanApplicationWizardStep.LoanRequest => LoanApplicationWizardStep.MonthlyFinances,
+            LoanApplicationWizardStep.ReviewAndDeclaration => LoanApplicationWizardStep.LoanRequest,
+            _ => null
+        };
+    }
+
+    private static LoanApplicationWizardStep? GetNextStep(LoanApplicationWizardStep step)
+    {
+        return step switch
+        {
+            LoanApplicationWizardStep.Employment => LoanApplicationWizardStep.MonthlyFinances,
+            LoanApplicationWizardStep.MonthlyFinances => LoanApplicationWizardStep.LoanRequest,
+            LoanApplicationWizardStep.LoanRequest => LoanApplicationWizardStep.ReviewAndDeclaration,
+            LoanApplicationWizardStep.ReviewAndDeclaration => null,
+            _ => null
+        };
+    }
+
+    private async Task<string> GetCustomerUserIdAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException("The signed-in customer could not be found.");
+        }
+
+        return userId;
+    }
+}

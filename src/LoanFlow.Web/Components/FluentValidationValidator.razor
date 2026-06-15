@@ -1,0 +1,135 @@
+@using System.Reflection
+@using FluentValidation
+@using FluentValidation.Results
+@using Microsoft.AspNetCore.Components.Forms
+@implements IDisposable
+@inject IServiceProvider Services
+
+@code {
+    [CascadingParameter]
+    private EditContext CurrentEditContext { get; set; } = default!;
+
+    private ValidationMessageStore? messageStore;
+
+    protected override void OnInitialized()
+    {
+        messageStore = new ValidationMessageStore(CurrentEditContext);
+        CurrentEditContext.OnValidationRequested += OnValidationRequested;
+        CurrentEditContext.OnFieldChanged += OnFieldChanged;
+    }
+
+    public void Dispose()
+    {
+        CurrentEditContext.OnValidationRequested -= OnValidationRequested;
+        CurrentEditContext.OnFieldChanged -= OnFieldChanged;
+    }
+
+    public void DisplayErrors(IEnumerable<ValidationFailure> failures)
+    {
+        if (messageStore is null)
+        {
+            return;
+        }
+
+        messageStore.Clear();
+
+        foreach (var failure in failures)
+        {
+            messageStore.Add(ToFieldIdentifier(CurrentEditContext, failure.PropertyName), failure.ErrorMessage);
+        }
+
+        CurrentEditContext.NotifyValidationStateChanged();
+    }
+
+    public void ClearErrors()
+    {
+        if (messageStore is null)
+        {
+            return;
+        }
+
+        messageStore.Clear();
+        CurrentEditContext.NotifyValidationStateChanged();
+    }
+
+    private async void OnValidationRequested(object? sender, ValidationRequestedEventArgs eventArgs)
+    {
+        await ValidateModelAsync();
+    }
+
+    private async void OnFieldChanged(object? sender, FieldChangedEventArgs eventArgs)
+    {
+        await ValidateModelAsync();
+    }
+
+    private async Task ValidateModelAsync()
+    {
+        if (messageStore is null)
+        {
+            return;
+        }
+
+        messageStore.Clear();
+
+        var model = CurrentEditContext.Model;
+        var validatorType = typeof(IValidator<>).MakeGenericType(model.GetType());
+        var validator = Services.GetService(validatorType);
+
+        if (validator is null)
+        {
+            CurrentEditContext.NotifyValidationStateChanged();
+            return;
+        }
+
+        var failures = await ValidateInternalAsync(model, validator);
+
+        foreach (var failure in failures)
+        {
+            messageStore.Add(ToFieldIdentifier(CurrentEditContext, failure.PropertyName), failure.ErrorMessage);
+        }
+
+        CurrentEditContext.NotifyValidationStateChanged();
+    }
+
+    private static async Task<IEnumerable<ValidationFailure>> ValidateInternalAsync(object model, object validator)
+    {
+        var method = typeof(FluentValidationValidator)
+            .GetMethod(nameof(ValidateTypedAsync), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(model.GetType());
+
+        var task = (Task<IEnumerable<ValidationFailure>>)method.Invoke(null, [model, validator])!;
+        return await task;
+    }
+
+    private static async Task<IEnumerable<ValidationFailure>> ValidateTypedAsync<T>(object model, object validator)
+    {
+        var result = await ((IValidator<T>)validator).ValidateAsync((T)model);
+        return result.Errors;
+    }
+
+    private static FieldIdentifier ToFieldIdentifier(EditContext editContext, string propertyPath)
+    {
+        var model = editContext.Model;
+
+        if (string.IsNullOrWhiteSpace(propertyPath))
+        {
+            return new FieldIdentifier(model, string.Empty);
+        }
+
+        var parts = propertyPath.Split('.');
+        object currentModel = model;
+
+        for (var index = 0; index < parts.Length - 1; index++)
+        {
+            var property = currentModel.GetType().GetProperty(parts[index]);
+            if (property is null)
+            {
+                return new FieldIdentifier(model, propertyPath);
+            }
+
+            currentModel = property.GetValue(currentModel) ?? model;
+        }
+
+        return new FieldIdentifier(currentModel, parts[^1]);
+    }
+}

@@ -1,0 +1,96 @@
+@page "/officer/applications"
+@attribute [Authorize(Roles = AppRoles.LoanOfficer)]
+
+@using LoanFlow.Application.LoanApplications
+
+@inject ILoanApplicationReadService LoanApplicationReadService
+
+<PageTitle>Officer Application Queue</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Loan Officer Queue</p>
+    <h1>Submitted applications</h1>
+    <p class="dashboard-text">
+        This queue is read-only for now. Review and approval actions will come later.
+    </p>
+
+    <div class="dashboard-card d-flex flex-column gap-3">
+        <div class="profile-form-grid">
+            <div>
+                <label class="form-label" for="reference-search">Search by reference</label>
+                <InputText id="reference-search" class="form-control" @bind-Value="referenceSearch" />
+            </div>
+
+            <div>
+                <label class="form-label" for="date-sort">Submission date sort</label>
+                <InputSelect id="date-sort" class="form-select" @bind-Value="sortOption">
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                </InputSelect>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="button" @onclick="LoadQueueAsync">Apply</button>
+            <button class="btn btn-outline-secondary" type="button" @onclick="ClearFiltersAsync">Clear</button>
+        </div>
+
+        @if (queue.Count == 0)
+        {
+            <p class="mb-0">No submitted applications match the current filters.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Reference</th>
+                            <th>Customer Name</th>
+                            <th>Product</th>
+                            <th>Amount</th>
+                            <th>Submitted</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in queue)
+                        {
+                            <tr>
+                                <td>@item.SubmissionReference</td>
+                                <td>@item.ApplicantFullName</td>
+                                <td>@item.ProductName</td>
+                                <td>@item.RequestedAmount</td>
+                                <td>@item.SubmittedAtUtc.ToLocalTime().ToString("dd MMM yyyy hh:mm tt")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<OfficerApplicationQueueItem> queue = [];
+    private string? referenceSearch;
+    private string sortOption = "newest";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadQueueAsync();
+    }
+
+    private async Task LoadQueueAsync()
+    {
+        queue = await LoanApplicationReadService.GetSubmittedQueueAsync(
+            referenceSearch,
+            newestFirst: sortOption != "oldest");
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        referenceSearch = null;
+        sortOption = "newest";
+        await LoadQueueAsync();
+    }
+}

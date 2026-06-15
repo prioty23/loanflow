@@ -1,0 +1,118 @@
+@page "/customer/applications/{Id:int}"
+@attribute [Authorize(Roles = AppRoles.Customer)]
+
+@using System.Security.Claims
+@using LoanFlow.Application.LoanApplications
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILoanApplicationReadService LoanApplicationReadService
+
+<PageTitle>Application Details</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Customer Applications</p>
+    <h1>Submitted application</h1>
+    <p class="dashboard-text">
+        This page is read-only after submission.
+    </p>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    @if (application is null && string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="dashboard-card">
+            <p class="mb-0">The submitted application could not be found.</p>
+        </div>
+    }
+    else if (application is not null)
+    {
+        <div class="dashboard-card mb-4">
+            <p class="dashboard-card-label">Reference</p>
+            <h2>@application.SubmissionReference</h2>
+            <p class="mb-0 text-secondary">Submitted: @application.SubmittedAtUtc.ToLocalTime().ToString("dd MMM yyyy hh:mm tt")</p>
+        </div>
+
+        <div class="wizard-review-grid">
+            <div class="dashboard-card">
+                <h3>Customer profile</h3>
+                <p>@application.ProfileFullName</p>
+                <p>Date of birth: @application.ProfileDateOfBirth.ToString("dd MMM yyyy")</p>
+                <p>NID: @application.ProfileNationalIdNumber</p>
+                <p>@application.ProfileMobileNumber</p>
+                <p>@application.ProfileCurrentAddress</p>
+                <p>@application.ProfilePermanentAddress</p>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Employment</h3>
+                <p>@application.EmploymentType</p>
+                <p>@application.EmployerOrBusinessName</p>
+                <p>@application.JobTitle</p>
+                <p>Start date: @application.EmploymentStartDate.ToString("dd MMM yyyy")</p>
+                <p>Monthly net salary: @application.MonthlyNetSalary</p>
+                <p>Other income: @application.OtherMonthlyIncome</p>
+                <p>Total income: @application.TotalMonthlyIncome</p>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Monthly finances</h3>
+                <p>Housing expense: @application.HousingExpense</p>
+                <p>Living expense: @application.LivingExpense</p>
+                <p>Existing monthly EMI: @application.ExistingMonthlyEmi</p>
+                <p>Other liabilities: @application.OtherLiabilities</p>
+                <p>Total monthly expenses: @application.TotalMonthlyExpenses</p>
+                <p>Disposable income: @application.CalculatedDisposableIncome</p>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Loan request</h3>
+                <p>@application.ProductName (@application.ProductCode)</p>
+                <p>Amount: @application.RequestedAmount</p>
+                <p>Tenure: @application.RequestedTenureMonths months</p>
+                <p>Purpose: @application.LoanPurpose</p>
+                <p>Description: @application.PurposeDescription</p>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <a class="btn btn-outline-secondary" href="@CustomerApplicationWizardRoutes.GetTimelinePath(Id)">Open Timeline</a>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private SubmittedLoanApplicationDetails? application;
+    private string? errorMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            var customerUserId = await GetCustomerUserIdAsync();
+            application = await LoanApplicationReadService.GetSubmittedDetailsForCustomerAsync(customerUserId, Id);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private async Task<string> GetCustomerUserIdAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException("The signed-in customer could not be found.");
+        }
+
+        return userId;
+    }
+}

@@ -1,0 +1,113 @@
+@page "/customer/applications"
+@attribute [Authorize(Roles = AppRoles.Customer)]
+
+@using System.Security.Claims
+@using LoanFlow.Application.LoanApplications
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ICustomerLoanApplicationService CustomerLoanApplicationService
+
+<PageTitle>My Applications</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Customer Applications</p>
+    <h1>Your applications</h1>
+    <p class="dashboard-text">
+        Each customer sees only their own draft and submitted applications.
+    </p>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <div class="dashboard-card d-flex flex-column gap-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <p class="dashboard-card-label mb-1">Applications</p>
+                <h2 class="mb-0">Your list</h2>
+            </div>
+            <a class="btn btn-primary" href="@RoleDashboardRoutes.CustomerNewApplication">Start New Application</a>
+        </div>
+
+        @if (applications.Count == 0)
+        {
+            <p class="mb-0">You have not started any applications yet.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Applicant</th>
+                            <th>Product</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var application in applications)
+                        {
+                            <tr>
+                                <td>@application.ApplicantFullName</td>
+                                <td>@application.ProductName</td>
+                                <td>@application.Status</td>
+                                <td>@application.UpdatedAtUtc.ToLocalTime().ToString("dd MMM yyyy hh:mm tt")</td>
+                                <td>
+                                    @if (application.Status == LoanFlow.Domain.Enums.ApplicationStatus.Draft)
+                                    {
+                                        <a class="btn btn-link" href="@CustomerApplicationWizardRoutes.GetEditPath(application.Id)">
+                                            Continue
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <a class="btn btn-link" href="@CustomerApplicationWizardRoutes.GetViewPath(application.Id)">
+                                            View
+                                        </a>
+                                        <a class="btn btn-link" href="@CustomerApplicationWizardRoutes.GetTimelinePath(application.Id)">
+                                            Timeline
+                                        </a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<CustomerLoanApplicationListItem> applications = [];
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var customerUserId = await GetCustomerUserIdAsync();
+            applications = await CustomerLoanApplicationService.GetForCustomerAsync(customerUserId);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private async Task<string> GetCustomerUserIdAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException("The signed-in customer could not be found.");
+        }
+
+        return userId;
+    }
+}

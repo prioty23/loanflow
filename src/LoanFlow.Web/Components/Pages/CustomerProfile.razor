@@ -1,0 +1,168 @@
+@page "/customer/profile"
+@attribute [Authorize(Roles = AppRoles.Customer)]
+
+@using System.Security.Claims
+@using LoanFlow.Application.CustomerProfiles
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ICustomerProfileService CustomerProfileService
+
+<PageTitle>Customer Profile</PageTitle>
+
+<section class="dashboard-shell">
+    <p class="dashboard-kicker">Customer Profile</p>
+    <h1>Your profile</h1>
+    <p class="dashboard-text">
+        Fill in your personal details once, and update them later when needed.
+    </p>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert alert-success" role="alert">@statusMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <EditForm EditContext="editContext" OnSubmit="SaveProfileAsync" FormName="customer-profile">
+        <FluentValidationValidator />
+        <ValidationSummary />
+
+        <div class="dashboard-card profile-form-grid">
+            <div>
+                <label class="form-label" for="full-name">Full name</label>
+                <InputText id="full-name" class="form-control" @bind-Value="Input.FullName" />
+                <ValidationMessage For="@(() => Input.FullName)" />
+            </div>
+
+            <div>
+                <label class="form-label" for="date-of-birth">Date of birth</label>
+                <InputDate id="date-of-birth" class="form-control" @bind-Value="Input.DateOfBirth" />
+                <ValidationMessage For="@(() => Input.DateOfBirth)" />
+            </div>
+
+            <div>
+                <label class="form-label" for="nid-number">NID number</label>
+                <InputText id="nid-number" class="form-control" @bind-Value="Input.NationalIdNumber" />
+                <ValidationMessage For="@(() => Input.NationalIdNumber)" />
+            </div>
+
+            <div>
+                <label class="form-label" for="mobile-number">Mobile number</label>
+                <InputText id="mobile-number" class="form-control" @bind-Value="Input.MobileNumber" />
+                <ValidationMessage For="@(() => Input.MobileNumber)" />
+            </div>
+
+            <div class="profile-form-wide">
+                <label class="form-label" for="present-address">Present address</label>
+                <InputTextArea id="present-address" class="form-control" @bind-Value="Input.CurrentAddress" />
+                <ValidationMessage For="@(() => Input.CurrentAddress)" />
+            </div>
+
+            <div class="profile-form-wide">
+                <div class="form-check mb-3">
+                    <InputCheckbox id="same-address" class="form-check-input" @bind-Value="Input.IsPermanentAddressSameAsPresentAddress" />
+                    <label class="form-check-label" for="same-address">
+                        Permanent address is the same as present address
+                    </label>
+                </div>
+
+                <label class="form-label" for="permanent-address">Permanent address</label>
+                <InputTextArea id="permanent-address"
+                               class="form-control"
+                               @bind-Value="Input.PermanentAddress"
+                               disabled="@Input.IsPermanentAddressSameAsPresentAddress" />
+                <ValidationMessage For="@(() => Input.PermanentAddress)" />
+            </div>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Save profile</button>
+    </EditForm>
+</section>
+
+@code {
+    private string? statusMessage;
+    private string? errorMessage;
+
+    private CustomerProfileDto Input { get; set; } = new();
+    private EditContext editContext = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new EditContext(Input);
+
+        var userId = await GetUserIdAsync();
+        var profile = await CustomerProfileService.GetForUserAsync(userId);
+
+        if (profile is null)
+        {
+            return;
+        }
+
+        Input = new CustomerProfileDto
+        {
+            FullName = profile.FullName,
+            DateOfBirth = profile.DateOfBirth,
+            NationalIdNumber = profile.NationalIdNumber,
+            MobileNumber = profile.MobileNumber,
+            CurrentAddress = profile.CurrentAddress,
+            PermanentAddress = profile.PermanentAddress,
+            IsPermanentAddressSameAsPresentAddress = profile.CurrentAddress == profile.PermanentAddress
+        };
+
+        editContext = new EditContext(Input);
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        statusMessage = null;
+        errorMessage = null;
+
+        if (!editContext.Validate())
+        {
+            return;
+        }
+
+        try
+        {
+            var userId = await GetUserIdAsync();
+            var permanentAddress = Input.IsPermanentAddressSameAsPresentAddress
+                ? Input.CurrentAddress
+                : Input.PermanentAddress;
+
+            await CustomerProfileService.SaveForUserAsync(
+                userId,
+                new SaveCustomerProfileRequest(
+                    Input.FullName,
+                    Input.DateOfBirth!.Value,
+                    Input.NationalIdNumber,
+                    Input.MobileNumber,
+                    Input.CurrentAddress,
+                    permanentAddress));
+
+            Input.PermanentAddress = permanentAddress;
+            statusMessage = "Your profile has been saved.";
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or ArgumentOutOfRangeException or ArgumentException)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private async Task<string> GetUserIdAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException("The signed-in user could not be found.");
+        }
+
+        return userId;
+    }
+}

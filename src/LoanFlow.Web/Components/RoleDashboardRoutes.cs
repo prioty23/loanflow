@@ -6,6 +6,10 @@ namespace LoanFlow.Web.Components;
 public static class RoleDashboardRoutes
 {
     public const string Customer = "/customer/dashboard";
+    public const string CustomerProfile = "/customer/profile";
+    public const string CustomerApplications = "/customer/applications";
+    public const string CustomerNewApplication = "/customer/applications/new";
+    public const string OfficerApplications = "/officer/applications";
     public const string LoanOfficer = "/officer/dashboard";
     public const string Approver = "/approver/dashboard";
     public const string Administrator = "/admin/dashboard";

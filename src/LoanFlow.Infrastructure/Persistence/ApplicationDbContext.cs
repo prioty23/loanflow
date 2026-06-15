@@ -7,37 +7,21 @@ namespace LoanFlow.Infrastructure.Persistence;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
 {
+    public DbSet<ApplicantSnapshot> ApplicantSnapshots => Set<ApplicantSnapshot>();
+
+    public DbSet<CustomerProfile> CustomerProfiles => Set<CustomerProfile>();
+
+    public DbSet<LoanApplication> LoanApplications => Set<LoanApplication>();
+
+    public DbSet<LoanApplicationFinancialProfile> LoanApplicationFinancialProfiles => Set<LoanApplicationFinancialProfile>();
+
+    public DbSet<LoanApplicationStatusHistory> LoanApplicationStatusHistory => Set<LoanApplicationStatusHistory>();
+
     public DbSet<LoanProduct> LoanProducts => Set<LoanProduct>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-
-        builder.Entity<LoanProduct>(entity =>
-        {
-            entity.HasIndex(product => product.ProductCode)
-                .IsUnique();
-
-            entity.Property(product => product.ProductName)
-                .HasMaxLength(120);
-
-            entity.Property(product => product.ProductCode)
-                .HasMaxLength(30);
-
-            entity.Property(product => product.MinimumLoanAmount)
-                .HasPrecision(18, 2);
-
-            entity.Property(product => product.MaximumLoanAmount)
-                .HasPrecision(18, 2);
-
-            entity.Property(product => product.AnnualInterestRate)
-                .HasPrecision(5, 2);
-
-            entity.Property(product => product.MinimumMonthlyIncome)
-                .HasPrecision(18, 2);
-
-            entity.Property(product => product.MaximumDebtToIncomeRatio)
-                .HasPrecision(4, 2);
-        });
+        builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
     }
 }

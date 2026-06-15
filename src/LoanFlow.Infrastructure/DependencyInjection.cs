@@ -1,4 +1,6 @@
 using System;
+using LoanFlow.Application.CustomerProfiles;
+using LoanFlow.Application.LoanApplications;
 using LoanFlow.Application.LoanProducts;
 using LoanFlow.Infrastructure.Identity;
 using LoanFlow.Infrastructure.Persistence;
@@ -22,6 +24,9 @@ public static class DependencyInjection
                 sqlServer => sqlServer.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
 
         services.AddDatabaseDeveloperPageExceptionFilter();
+        services.AddScoped<ICustomerProfileService, CustomerProfileService>();
+        services.AddScoped<ICustomerLoanApplicationService, CustomerLoanApplicationService>();
+        services.AddScoped<ILoanApplicationReadService, LoanApplicationReadService>();
         services.AddScoped<ILoanProductReadService, LoanProductReadService>();
 
         services.AddIdentityCore<ApplicationUser>(options =>

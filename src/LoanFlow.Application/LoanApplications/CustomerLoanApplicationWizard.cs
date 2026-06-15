@@ -1,0 +1,35 @@
+using LoanFlow.Domain.Enums;
+
+namespace LoanFlow.Application.LoanApplications;
+
+public sealed record CustomerLoanApplicationWizard(
+    int Id,
+    string ProductName,
+    string ProductCode,
+    ApplicationStatus Status,
+    LoanApplicationWizardStep CurrentStep,
+    LoanApplicationWizardStep? LastCompletedStep,
+    EmploymentType EmploymentType,
+    string EmployerOrBusinessName,
+    string JobTitle,
+    DateOnly? EmploymentStartDate,
+    decimal MonthlyNetSalary,
+    decimal OtherMonthlyIncome,
+    decimal TotalMonthlyIncome,
+    decimal HousingExpense,
+    decimal LivingExpense,
+    decimal ExistingMonthlyEmi,
+    decimal OtherLiabilities,
+    decimal TotalMonthlyExpenses,
+    decimal CalculatedDisposableIncome,
+    string ApplicantFullName,
+    decimal RequestedAmount,
+    int RequestedTenureMonths,
+    LoanPurpose LoanPurpose,
+    string PurposeDescription,
+    bool ProductIsActive,
+    decimal ProductMinimumLoanAmount,
+    decimal ProductMaximumLoanAmount,
+    int ProductMinimumTenureMonths,
+    int ProductMaximumTenureMonths,
+    bool DeclarationAccepted);

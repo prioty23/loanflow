@@ -1,3 +1,5 @@
+using FluentValidation;
+using LoanFlow.Application.Validation;
 using LoanFlow.Infrastructure;
 using LoanFlow.Infrastructure.Identity;
 using LoanFlow.Infrastructure.Persistence;
@@ -26,6 +28,7 @@ builder.Services.AddAuthentication(options =>
     .AddIdentityCookies();
 
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddValidatorsFromAssemblyContaining<CustomerProfileDtoValidator>();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 

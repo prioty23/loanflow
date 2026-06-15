@@ -124,3 +124,79 @@ h1:focus {
     padding-top: 1.5rem;
     border-top: 1px solid #d9e4ef;
 }
+
+.profile-form-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.profile-form-wide {
+    grid-column: 1 / -1;
+}
+
+@media (min-width: 768px) {
+    .profile-form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.wizard-progress {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.wizard-progress-item {
+    padding: 0.9rem 1rem;
+    border: 1px solid #c8d6e5;
+    border-radius: 0.9rem;
+    background: #f7fbff;
+}
+
+.wizard-progress-item.is-current {
+    border-color: #1f5e89;
+    background: #dfeef9;
+}
+
+.wizard-progress-item.is-complete {
+    border-color: #6a9f6b;
+    background: #edf8ee;
+}
+
+.wizard-step-number {
+    display: inline-flex;
+    width: 1.8rem;
+    height: 1.8rem;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.4rem;
+    border-radius: 999px;
+    background: #1f5e89;
+    color: #fff;
+    font-weight: 700;
+}
+
+.wizard-step-label {
+    display: block;
+    font-weight: 700;
+}
+
+.wizard-review-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.timeline-item + .timeline-item {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #d9e4ef;
+}
+
+@media (min-width: 768px) {
+    .wizard-review-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}

@@ -26,11 +26,26 @@
                             <span class="bi bi-grid-1x2-fill-nav-menu" aria-hidden="true"></span> Customer Dashboard
                         </NavLink>
                     </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="@RoleDashboardRoutes.CustomerProfile">
+                            <span class="bi bi-person-vcard-fill-nav-menu" aria-hidden="true"></span> Customer Profile
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="@RoleDashboardRoutes.CustomerApplications">
+                            <span class="bi bi-journal-text-nav-menu" aria-hidden="true"></span> My Applications
+                        </NavLink>
+                    </div>
                 </AuthorizeView>
                 <AuthorizeView Roles="@AppRoles.LoanOfficer" Context="officerState">
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="@RoleDashboardRoutes.LoanOfficer">
                             <span class="bi bi-grid-1x2-fill-nav-menu" aria-hidden="true"></span> Officer Dashboard
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="@RoleDashboardRoutes.OfficerApplications">
+                            <span class="bi bi-journal-text-nav-menu" aria-hidden="true"></span> Officer Queue
                         </NavLink>
                     </div>
                 </AuthorizeView>
