@@ -137,6 +137,10 @@ namespace LoanFlow.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("AssignedLoanOfficerId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -197,6 +201,8 @@ namespace LoanFlow.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AssignedLoanOfficerId");
+
                     b.HasIndex("CustomerUserId");
 
                     b.HasIndex("LoanProductId");
@@ -206,6 +212,35 @@ namespace LoanFlow.Infrastructure.Persistence.Migrations
                         .HasFilter("[SubmissionReference] IS NOT NULL");
 
                     b.ToTable("LoanApplications");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.LoanApplicationDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LoanApplicationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<int>("VerificationStatus")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanApplicationId", "DocumentType")
+                        .IsUnique();
+
+                    b.ToTable("LoanApplicationDocuments");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.LoanApplicationFinancialProfile", b =>
@@ -613,6 +648,11 @@ namespace LoanFlow.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("LoanFlow.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
+                        .HasForeignKey("AssignedLoanOfficerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("LoanFlow.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
                         .HasForeignKey("CustomerUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -621,6 +661,15 @@ namespace LoanFlow.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("LoanProductId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.LoanApplicationDocument", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.LoanApplication", null)
+                        .WithMany("Documents")
+                        .HasForeignKey("LoanApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -747,6 +796,8 @@ namespace LoanFlow.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("LoanFlow.Domain.Entities.LoanApplication", b =>
                 {
                     b.Navigation("ApplicantSnapshot");
+
+                    b.Navigation("Documents");
 
                     b.Navigation("FinancialProfile");
 

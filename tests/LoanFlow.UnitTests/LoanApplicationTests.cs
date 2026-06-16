@@ -3,6 +3,7 @@ using LoanFlow.Application.LoanApplications;
 using LoanFlow.Application.Validation;
 using LoanFlow.Domain.Entities;
 using LoanFlow.Domain.Enums;
+using LoanFlow.Domain.Exceptions;
 
 namespace LoanFlow.UnitTests;
 
@@ -65,7 +66,7 @@ public class LoanApplicationTests
         application.SetDeclarationAccepted(true);
         application.Submit(CreateReference(), CreateApplicantSnapshot(), CreateSubmittedAtUtc());
 
-        var exception = Assert.Throws<InvalidOperationException>(() => application.ReturnToDraft());
+        var exception = Assert.Throws<DomainRuleException>(() => application.ReturnToDraft());
 
         Assert.Equal("Submitted applications cannot return to draft.", exception.Message);
         Assert.Equal(ApplicationStatus.Submitted, application.Status);
@@ -78,7 +79,7 @@ public class LoanApplicationTests
         application.SetDeclarationAccepted(true);
         application.Submit(CreateReference(), CreateApplicantSnapshot(), CreateSubmittedAtUtc());
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<DomainRuleException>(() =>
             application.Submit(CreateReference(), CreateApplicantSnapshot(), CreateSubmittedAtUtc()));
 
         Assert.Equal("This application has already been submitted.", exception.Message);
@@ -91,7 +92,7 @@ public class LoanApplicationTests
         application.SetDeclarationAccepted(true);
         application.Submit(CreateReference(), CreateApplicantSnapshot(), CreateSubmittedAtUtc());
 
-        Assert.Throws<InvalidOperationException>(() => application.UpdateDraftDetails(
+        Assert.Throws<DomainRuleException>(() => application.UpdateDraftDetails(
             applicantFullName: "Changed Name",
             requestedAmount: 300000m,
             requestedTenureMonths: 48,
@@ -107,7 +108,7 @@ public class LoanApplicationTests
         application.SetDeclarationAccepted(true);
         application.Submit(CreateReference(), CreateApplicantSnapshot(), CreateSubmittedAtUtc());
 
-        Assert.Throws<InvalidOperationException>(() => application.SetDeclarationAccepted(false));
+        Assert.Throws<DomainRuleException>(() => application.SetDeclarationAccepted(false));
     }
 
     [Fact]
@@ -126,7 +127,7 @@ public class LoanApplicationTests
     {
         var application = CreateApplication();
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<DomainRuleException>(() =>
             application.Submit(CreateReference(), CreateApplicantSnapshot(), CreateSubmittedAtUtc()));
 
         Assert.Equal("You must accept the declaration before submitting.", exception.Message);
@@ -361,6 +362,146 @@ public class LoanApplicationTests
         Assert.Equal("Requested tenure must be between 12 and 60 months.", exception.Message);
     }
 
+    [Fact]
+    public void StartReviewByLoanOfficer_AllowsSubmittedToUnderReview()
+    {
+        var application = CreateSubmittedApplication();
+
+        application.StartReviewByLoanOfficer("officer-1", CreateChangedAtUtc());
+
+        Assert.Equal(ApplicationStatus.UnderReview, application.Status);
+        Assert.Equal("officer-1", application.AssignedLoanOfficerId);
+        Assert.Equal(ApplicationStatus.UnderReview, application.StatusHistory.Last().ToStatus);
+    }
+
+    [Fact]
+    public void RequestInformation_AllowsUnderReviewToInformationRequested()
+    {
+        var application = CreateApplicationUnderReview();
+
+        application.RequestInformation("Please upload a clearer NID copy.", CreateChangedAtUtc());
+
+        Assert.Equal(ApplicationStatus.InformationRequested, application.Status);
+        Assert.Equal("Please upload a clearer NID copy.", application.StatusHistory.Last().Note);
+    }
+
+    [Fact]
+    public void ResubmitRequestedInformation_AllowsInformationRequestedToSubmitted()
+    {
+        var application = CreateApplicationWithInformationRequestedStatus();
+
+        application.ResubmitRequestedInformation(CreateChangedAtUtc());
+
+        Assert.Equal(ApplicationStatus.Submitted, application.Status);
+    }
+
+    [Fact]
+    public void MarkReadyForAssessment_AllowsUnderReviewWhenAllRequiredDocumentsAreVerified()
+    {
+        var application = CreateApplicationUnderReview();
+        VerifyAllRequiredDocuments(application);
+
+        application.MarkReadyForAssessment(CreateChangedAtUtc());
+
+        Assert.Equal(ApplicationStatus.ReadyForAssessment, application.Status);
+    }
+
+    [Fact]
+    public void StartReviewByLoanOfficer_RejectsDraftApplication()
+    {
+        var application = CreateApplication();
+
+        var exception = Assert.Throws<DomainRuleException>(() =>
+            application.StartReviewByLoanOfficer("officer-1", CreateChangedAtUtc()));
+
+        Assert.Equal("The status cannot change from Draft using this action.", exception.Message);
+    }
+
+    [Fact]
+    public void StartReviewByLoanOfficer_RejectsCustomerAsReviewer()
+    {
+        var application = CreateSubmittedApplication();
+
+        var exception = Assert.Throws<DomainRuleException>(() =>
+            application.StartReviewByLoanOfficer("customer-1", CreateChangedAtUtc()));
+
+        Assert.Equal("The customer cannot start review for their own application.", exception.Message);
+    }
+
+    [Fact]
+    public void RequestInformation_RequiresExplanation()
+    {
+        var application = CreateApplicationUnderReview();
+
+        var exception = Assert.Throws<DomainRuleException>(() =>
+            application.RequestInformation("", CreateChangedAtUtc()));
+
+        Assert.Equal("An explanation is required when requesting more information.", exception.Message);
+    }
+
+    [Fact]
+    public void RequestInformation_RejectsSubmittedApplication()
+    {
+        var application = CreateSubmittedApplication();
+
+        var exception = Assert.Throws<DomainRuleException>(() =>
+            application.RequestInformation("Need more details.", CreateChangedAtUtc()));
+
+        Assert.Equal("The status cannot change from Submitted using this action.", exception.Message);
+    }
+
+    [Fact]
+    public void ResubmitRequestedInformation_RejectsUnderReviewApplication()
+    {
+        var application = CreateApplicationUnderReview();
+
+        var exception = Assert.Throws<DomainRuleException>(() =>
+            application.ResubmitRequestedInformation(CreateChangedAtUtc()));
+
+        Assert.Equal("The status cannot change from UnderReview using this action.", exception.Message);
+    }
+
+    [Fact]
+    public void MarkReadyForAssessment_RejectsWhenRequiredDocumentsAreMissing()
+    {
+        var application = CreateApplicationUnderReview();
+
+        var exception = Assert.Throws<DomainRuleException>(() =>
+            application.MarkReadyForAssessment(CreateChangedAtUtc()));
+
+        Assert.Equal(
+            "All required documents must be verified before the application can become ReadyForAssessment.",
+            exception.Message);
+    }
+
+    [Fact]
+    public void MarkReadyForAssessment_RejectsWhenAnyRequiredDocumentIsRejected()
+    {
+        var application = CreateApplicationUnderReview();
+        application.SetDocumentVerification(DocumentType.NationalId, VerificationStatus.Verified);
+        application.SetDocumentVerification(DocumentType.IncomeProof, VerificationStatus.Rejected, "Unreadable.");
+        application.SetDocumentVerification(DocumentType.BankStatement, VerificationStatus.Verified);
+
+        var exception = Assert.Throws<DomainRuleException>(() =>
+            application.MarkReadyForAssessment(CreateChangedAtUtc()));
+
+        Assert.Equal(
+            "All required documents must be verified before the application can become ReadyForAssessment.",
+            exception.Message);
+    }
+
+    [Fact]
+    public void ReadyForAssessment_RejectsInformationRequestedApplication()
+    {
+        var application = CreateApplicationWithInformationRequestedStatus();
+        VerifyAllRequiredDocuments(application);
+
+        var exception = Assert.Throws<DomainRuleException>(() =>
+            application.MarkReadyForAssessment(CreateChangedAtUtc()));
+
+        Assert.Equal("The status cannot change from InformationRequested using this action.", exception.Message);
+    }
+
     private static LoanApplication CreateApplication()
     {
         return new LoanApplication(
@@ -372,6 +513,28 @@ public class LoanApplicationTests
             monthlyIncome: 55000m,
             employmentType: EmploymentType.Salaried,
             loanPurpose: LoanPurpose.Education);
+    }
+
+    private static LoanApplication CreateSubmittedApplication()
+    {
+        var application = CreateApplication();
+        application.SetDeclarationAccepted(true);
+        application.Submit(CreateReference(), CreateApplicantSnapshot(), CreateSubmittedAtUtc());
+        return application;
+    }
+
+    private static LoanApplication CreateApplicationUnderReview()
+    {
+        var application = CreateSubmittedApplication();
+        application.StartReviewByLoanOfficer("officer-1", CreateChangedAtUtc());
+        return application;
+    }
+
+    private static LoanApplication CreateApplicationWithInformationRequestedStatus()
+    {
+        var application = CreateApplicationUnderReview();
+        application.RequestInformation("Please upload a clearer NID copy.", CreateChangedAtUtc().AddMinutes(5));
+        return application;
     }
 
     private static ApplicantSnapshot CreateApplicantSnapshot()
@@ -388,6 +551,11 @@ public class LoanApplicationTests
     private static DateTime CreateSubmittedAtUtc()
     {
         return new DateTime(2026, 6, 15, 9, 30, 0, DateTimeKind.Utc);
+    }
+
+    private static DateTime CreateChangedAtUtc()
+    {
+        return new DateTime(2026, 6, 15, 10, 0, 0, DateTimeKind.Utc);
     }
 
     private static string CreateReference()
@@ -408,5 +576,12 @@ public class LoanApplicationTests
             minimumMonthlyIncome: 25000m,
             maximumDebtToIncomeRatio: 0.5m,
             isActive: isActive);
+    }
+
+    private static void VerifyAllRequiredDocuments(LoanApplication application)
+    {
+        application.SetDocumentVerification(DocumentType.NationalId, VerificationStatus.Verified);
+        application.SetDocumentVerification(DocumentType.IncomeProof, VerificationStatus.Verified);
+        application.SetDocumentVerification(DocumentType.BankStatement, VerificationStatus.Verified);
     }
 }

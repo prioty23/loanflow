@@ -4,6 +4,7 @@ using LoanFlow.Application.LoanApplications;
 using LoanFlow.Application.Validation;
 using LoanFlow.Domain.Entities;
 using LoanFlow.Domain.Enums;
+using LoanFlow.Domain.Exceptions;
 using LoanFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -119,7 +120,7 @@ public class LoanApplicationServiceTests
 
         await service.SubmitAsync("customer-1", application.Id, declarationAccepted: true);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<DomainRuleException>(() =>
             service.SubmitAsync("customer-1", application.Id, declarationAccepted: true));
     }
 
@@ -133,7 +134,7 @@ public class LoanApplicationServiceTests
         var application = await SeedCompleteDraftApplicationAsync(dbContext, "customer-1");
         await service.SubmitAsync("customer-1", application.Id, declarationAccepted: true);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<DomainRuleException>(() =>
             service.SaveLoanRequestStepAsync(
                 "customer-1",
                 application.Id,

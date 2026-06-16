@@ -14,6 +14,9 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LoanApplica
         builder.Property(application => application.CustomerUserId)
             .HasMaxLength(450);
 
+        builder.Property(application => application.AssignedLoanOfficerId)
+            .HasMaxLength(450);
+
         builder.Property(application => application.CreatedAtUtc);
 
         builder.Property(application => application.UpdatedAtUtc);
@@ -47,6 +50,11 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LoanApplica
             .HasForeignKey(application => application.CustomerUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(application => application.AssignedLoanOfficerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne<LoanProduct>()
             .WithMany()
             .HasForeignKey(application => application.LoanProductId)
@@ -65,6 +73,11 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LoanApplica
         builder.HasMany(application => application.StatusHistory)
             .WithOne()
             .HasForeignKey(history => history.LoanApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(application => application.Documents)
+            .WithOne()
+            .HasForeignKey(document => document.LoanApplicationId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

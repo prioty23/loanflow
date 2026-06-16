@@ -19,8 +19,8 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(
-                connectionString,
+            options.UseSqlServer( 
+                connectionString,  //actual databse provider setup
                 sqlServer => sqlServer.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
 
         services.AddDatabaseDeveloperPageExceptionFilter();
@@ -31,7 +31,7 @@ public static class DependencyInjection
 
         services.AddIdentityCore<ApplicationUser>(options =>
             {
-                options.SignIn.RequireConfirmedAccount = false;
+                options.SignIn.RequireConfirmedAccount = false;  //true
                 options.User.RequireUniqueEmail = true;
 
                 options.Password.RequiredLength = 8;
@@ -41,7 +41,7 @@ public static class DependencyInjection
                 options.Password.RequireNonAlphanumeric = false;
 
                 options.Lockout.AllowedForNewUsers = true;
-                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.MaxFailedAccessAttempts = 3;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
 
                 options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;

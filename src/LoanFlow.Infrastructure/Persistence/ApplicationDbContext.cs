@@ -13,6 +13,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<LoanApplication> LoanApplications => Set<LoanApplication>();
 
+    public DbSet<LoanApplicationDocument> LoanApplicationDocuments => Set<LoanApplicationDocument>();
+
     public DbSet<LoanApplicationFinancialProfile> LoanApplicationFinancialProfiles => Set<LoanApplicationFinancialProfile>();
 
     public DbSet<LoanApplicationStatusHistory> LoanApplicationStatusHistory => Set<LoanApplicationStatusHistory>();

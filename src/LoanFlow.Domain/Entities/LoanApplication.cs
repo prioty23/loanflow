@@ -1,10 +1,17 @@
 using LoanFlow.Domain.Enums;
+using LoanFlow.Domain.Exceptions;
 
 namespace LoanFlow.Domain.Entities;
 
 public class LoanApplication
 {
     public const int SubmissionReferenceMaxLength = 32;
+    private static readonly DocumentType[] RequiredDocumentTypes =
+    [
+        DocumentType.NationalId,
+        DocumentType.IncomeProof,
+        DocumentType.BankStatement
+    ];
 
     public int Id { get; private set; }
 
@@ -40,11 +47,15 @@ public class LoanApplication
 
     public bool DeclarationAccepted { get; private set; }
 
+    public string? AssignedLoanOfficerId { get; private set; }
+
     public string? SubmissionReference { get; private set; }
 
     public ApplicantSnapshot? ApplicantSnapshot { get; private set; }
 
     public LoanApplicationFinancialProfile? FinancialProfile { get; private set; }
+
+    public List<LoanApplicationDocument> Documents { get; private set; } = [];
 
     public List<LoanApplicationStatusHistory> StatusHistory { get; private set; } = [];
 
@@ -125,16 +136,14 @@ public class LoanApplication
 
     public void Submit(string submissionReference, ApplicantSnapshot applicantSnapshot, DateTime submittedAtUtc)
     {
-        var previousStatus = Status;
-
         if (!DeclarationAccepted)
         {
-            throw new InvalidOperationException("You must accept the declaration before submitting.");
+            throw new DomainRuleException("You must accept the declaration before submitting.");
         }
 
         if (Status == ApplicationStatus.Submitted || SubmittedAtUtc is not null || !string.IsNullOrWhiteSpace(SubmissionReference))
         {
-            throw new InvalidOperationException("This application has already been submitted.");
+            throw new DomainRuleException("This application has already been submitted.");
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(submissionReference);
@@ -146,18 +155,10 @@ public class LoanApplication
 
         ArgumentNullException.ThrowIfNull(applicantSnapshot);
 
-        SetStatus(ApplicationStatus.Submitted);
         SubmissionReference = submissionReference.Trim();
         ApplicantSnapshot = applicantSnapshot;
         SubmittedAtUtc = submittedAtUtc;
-
-        StatusHistory.Add(new LoanApplicationStatusHistory(
-            fromStatus: previousStatus,
-            toStatus: Status,
-            changedAtUtc: SubmittedAtUtc.Value,
-            note: "Application submitted."));
-
-        UpdatedAtUtc = SubmittedAtUtc.Value;
+        ChangeStatus(ApplicationStatus.Submitted, submittedAtUtc, "Application submitted.");
     }
 
     public void MarkStepCompleted(LoanApplicationStep step)
@@ -183,7 +184,7 @@ public class LoanApplication
 
     public void ReturnToDraft()
     {
-        throw new InvalidOperationException("Submitted applications cannot return to draft.");
+        throw new DomainRuleException("Submitted applications cannot return to draft.");
     }
 
     public void SetEmploymentInformation(
@@ -232,7 +233,7 @@ public class LoanApplication
 
         if (FinancialProfile is null)
         {
-            throw new InvalidOperationException("Employment information must be saved before monthly finances.");
+            throw new DomainRuleException("Employment information must be saved before monthly finances.");
         }
 
         FinancialProfile.UpdateMonthlyFinances(
@@ -249,19 +250,103 @@ public class LoanApplication
     {
         if (Status != ApplicationStatus.Draft)
         {
-            throw new InvalidOperationException("Only draft applications can be changed.");
+            throw new DomainRuleException("Only draft applications can be changed.");
         }
     }
 
-    private void SetStatus(ApplicationStatus nextStatus)
+    public void StartReviewByLoanOfficer(string loanOfficerId, DateTime changedAtUtc)
     {
-        if (Status == ApplicationStatus.Draft && nextStatus == ApplicationStatus.Submitted)
+        ArgumentException.ThrowIfNullOrWhiteSpace(loanOfficerId);
+
+        var normalizedLoanOfficerId = loanOfficerId.Trim();
+        if (normalizedLoanOfficerId == CustomerUserId)
         {
-            Status = nextStatus;
-            return;
+            throw new DomainRuleException("The customer cannot start review for their own application.");
         }
 
-        throw new InvalidOperationException(
-            $"The status cannot change from {Status} to {nextStatus}.");
+        EnsureCurrentStatus(ApplicationStatus.Submitted);
+        AssignedLoanOfficerId = normalizedLoanOfficerId;
+        ChangeStatus(ApplicationStatus.UnderReview, changedAtUtc, "Review started by loan officer.");
+    }
+
+    public void RequestInformation(string explanation, DateTime changedAtUtc)
+    {
+        EnsureCurrentStatus(ApplicationStatus.UnderReview);
+
+        if (string.IsNullOrWhiteSpace(explanation))
+        {
+            throw new DomainRuleException("An explanation is required when requesting more information.");
+        }
+
+        ChangeStatus(
+            ApplicationStatus.InformationRequested,
+            changedAtUtc,
+            explanation.Trim());
+    }
+
+    public void ResubmitRequestedInformation(DateTime changedAtUtc)
+    {
+        EnsureCurrentStatus(ApplicationStatus.InformationRequested);
+        ChangeStatus(ApplicationStatus.Submitted, changedAtUtc, "Customer resubmitted the requested information.");
+    }
+
+    public void MarkReadyForAssessment(DateTime changedAtUtc)
+    {
+        EnsureCurrentStatus(ApplicationStatus.UnderReview);
+
+        if (!AreAllRequiredDocumentsVerified())
+        {
+            throw new DomainRuleException(
+                "All required documents must be verified before the application can become ReadyForAssessment.");
+        }
+
+        ChangeStatus(ApplicationStatus.ReadyForAssessment, changedAtUtc, "Application is ready for assessment.");
+    }
+
+    public void SetDocumentVerification(
+        DocumentType documentType,
+        VerificationStatus verificationStatus,
+        string? note = null)
+    {
+        var document = Documents.SingleOrDefault(existingDocument => existingDocument.DocumentType == documentType);
+
+        if (document is null)
+        {
+            document = new LoanApplicationDocument(documentType);
+            Documents.Add(document);
+        }
+
+        document.SetVerificationStatus(verificationStatus, note);
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    private bool AreAllRequiredDocumentsVerified()
+    {
+        return RequiredDocumentTypes.All(requiredDocumentType =>
+            Documents.Any(document =>
+                document.DocumentType == requiredDocumentType &&
+                document.VerificationStatus == VerificationStatus.Verified));
+    }
+
+    private void EnsureCurrentStatus(ApplicationStatus expectedStatus)
+    {
+        if (Status != expectedStatus)
+        {
+            throw new DomainRuleException(
+                $"The status cannot change from {Status} using this action.");
+        }
+    }
+
+    private void ChangeStatus(ApplicationStatus nextStatus, DateTime changedAtUtc, string note)
+    {
+        var previousStatus = Status;
+        Status = nextStatus;
+        UpdatedAtUtc = changedAtUtc;
+
+        StatusHistory.Add(new LoanApplicationStatusHistory(
+            fromStatus: previousStatus,
+            toStatus: nextStatus,
+            changedAtUtc: changedAtUtc,
+            note: note));
     }
 }
